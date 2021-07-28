@@ -16,6 +16,7 @@ on:
       - "v*"
 jobs:
   goreleaser:
+    environment: Default
     runs-on: ubuntu-latest
     steps:
       - name: Checkout

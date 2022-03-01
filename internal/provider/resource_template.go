@@ -186,13 +186,11 @@ func buildTemplate(templateID string, d *schema.ResourceData) *sp.Template {
 	return template
 }
 
-func publishTemplate(ctx context.Context, d *schema.ResourceData, client *sp.Client, templateID string, publish bool) error {
-	if publish {
-		// automatically publish the template
-		_, err := client.TemplatePublishContext(ctx, templateID)
-		if err != nil {
-			return err
-		}
+func publishTemplate(ctx context.Context, d *schema.ResourceData, client *sp.Client, templateID string) error {
+	// automatically publish the template
+	_, err := client.TemplatePublishContext(ctx, templateID)
+	if err != nil {
+		return err
 	}
 
 	return nil
@@ -210,9 +208,11 @@ func resourceTemplateCreate(ctx context.Context, d *schema.ResourceData, m inter
 		return diag.FromErr(err)
 	}
 
-	err = publishTemplate(ctx, d, client, templateID, template.Published)
-	if err != nil {
-		return diag.FromErr(err)
+	if template.Published {
+		err = publishTemplate(ctx, d, client, templateID)
+		if err != nil {
+			return diag.FromErr(err)
+		}
 	}
 
 	// Ensure the read looks for the correct copy of the template
@@ -255,9 +255,11 @@ func resourceTemplateUpdate(ctx context.Context, d *schema.ResourceData, m inter
 	}
 
 	// Publish it if we're going from draft -> published
-	err = publishTemplate(ctx, d, client, templateID, publishUpdate)
-	if err != nil {
-		return diag.FromErr(err)
+	if publishUpdate {
+		err = publishTemplate(ctx, d, client, templateID)
+		if err != nil {
+			return diag.FromErr(err)
+		}
 	}
 
 	// Ensure the read looks for the correct copy of the template

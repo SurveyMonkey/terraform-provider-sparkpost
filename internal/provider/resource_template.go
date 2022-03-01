@@ -240,16 +240,24 @@ func resourceTemplateUpdate(ctx context.Context, d *schema.ResourceData, m inter
 	if d.HasChange("published") && published {
 		// was draft now published
 		publishUpdate = true
+
+		// WARNING: it's undocumented, but the ?update_published param on the PUT can be overridden by
+		// a `published` field in the body. Since we want to update the draft here, we MUST set the
+		// published field to false in the PUT body.
+		// https://developers.sparkpost.com/api/templates/#templates-put-update-a-published-template
+		template.Published = false
 	} else if published {
 		// was published, no change
 		updatePublished = true
 	}
 
+	// Update the template. `updatePublished` controls whether to update the published or draft copy.
 	_, err := client.TemplateUpdateContext(ctx, template, updatePublished)
 	if err != nil {
 		return diag.FromErr(err)
 	}
 
+	// Publish it if we're going from draft -> published
 	err = publishTemplate(ctx, d, client, templateID, publishUpdate)
 	if err != nil {
 		return diag.FromErr(err)

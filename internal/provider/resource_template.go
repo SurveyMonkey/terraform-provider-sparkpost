@@ -186,19 +186,11 @@ func buildTemplate(templateID string, d *schema.ResourceData) *sp.Template {
 	return template
 }
 
-func publishTemplate(ctx context.Context, d *schema.ResourceData, client *sp.Client, templateID string, publish bool) error {
-	if publish {
-		// automatically publish the template
-		_, err := client.TemplatePublishContext(ctx, templateID)
-		if err != nil {
-			return err
-		}
-
-		// ensure the read looks for published templates
-		d.Set("draft", false)
-	} else {
-		// ensure the read looks for draft templates
-		d.Set("draft", true)
+func publishTemplate(ctx context.Context, d *schema.ResourceData, client *sp.Client, templateID string) error {
+	// automatically publish the template
+	_, err := client.TemplatePublishContext(ctx, templateID)
+	if err != nil {
+		return err
 	}
 
 	return nil
@@ -216,10 +208,15 @@ func resourceTemplateCreate(ctx context.Context, d *schema.ResourceData, m inter
 		return diag.FromErr(err)
 	}
 
-	err = publishTemplate(ctx, d, client, templateID, template.Published)
-	if err != nil {
-		return diag.FromErr(err)
+	if template.Published {
+		err = publishTemplate(ctx, d, client, templateID)
+		if err != nil {
+			return diag.FromErr(err)
+		}
 	}
+
+	// Ensure the read looks for the correct copy of the template
+	d.Set("draft", !template.Published)
 
 	d.SetId(id)
 
@@ -240,20 +237,33 @@ func resourceTemplateUpdate(ctx context.Context, d *schema.ResourceData, m inter
 	if d.HasChange("published") && published {
 		// was draft now published
 		publishUpdate = true
+
+		// WARNING: it's undocumented, but the ?update_published param on the PUT can be overridden by
+		// a `published` field in the body. Since we want to update the draft here, we MUST set the
+		// published field to false in the PUT body.
+		// https://developers.sparkpost.com/api/templates/#templates-put-update-a-published-template
+		template.Published = false
 	} else if published {
 		// was published, no change
 		updatePublished = true
 	}
 
+	// Update the template. `updatePublished` controls whether to update the published or draft copy.
 	_, err := client.TemplateUpdateContext(ctx, template, updatePublished)
 	if err != nil {
 		return diag.FromErr(err)
 	}
 
-	err = publishTemplate(ctx, d, client, templateID, publishUpdate)
-	if err != nil {
-		return diag.FromErr(err)
+	// Publish it if we're going from draft -> published
+	if publishUpdate {
+		err = publishTemplate(ctx, d, client, templateID)
+		if err != nil {
+			return diag.FromErr(err)
+		}
 	}
+
+	// Ensure the read looks for the correct copy of the template
+	d.Set("draft", !published)
 
 	return resourceTemplateRead(ctx, d, m)
 }

@@ -193,12 +193,6 @@ func publishTemplate(ctx context.Context, d *schema.ResourceData, client *sp.Cli
 		if err != nil {
 			return err
 		}
-
-		// ensure the read looks for published templates
-		d.Set("draft", false)
-	} else {
-		// ensure the read looks for draft templates
-		d.Set("draft", true)
 	}
 
 	return nil
@@ -220,6 +214,9 @@ func resourceTemplateCreate(ctx context.Context, d *schema.ResourceData, m inter
 	if err != nil {
 		return diag.FromErr(err)
 	}
+
+	// Ensure the read looks for the correct copy of the template
+	d.Set("draft", !template.Published)
 
 	d.SetId(id)
 
@@ -262,6 +259,9 @@ func resourceTemplateUpdate(ctx context.Context, d *schema.ResourceData, m inter
 	if err != nil {
 		return diag.FromErr(err)
 	}
+
+	// Ensure the read looks for the correct copy of the template
+	d.Set("draft", !published)
 
 	return resourceTemplateRead(ctx, d, m)
 }
